@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>eBay Emoji Slot Sorter</title>
+  <title>eBay Slot Sorter</title>
 
   <style>
     :root {
@@ -18,7 +18,9 @@
       --ebay-yellow: #f5af02;
       --ebay-green: #86b817;
 
-      --item-height: 112px;
+      --item-height: 140px;
+      --symbol-size: 86px;
+      --result-size: 40px;
     }
 
     * {
@@ -111,7 +113,7 @@
 
     .slot-frame {
       position: relative;
-      height: 154px;
+      height: 182px;
       padding: 20px;
       border-radius: 26px;
       background: linear-gradient(180deg, #2d333a, #111820);
@@ -175,9 +177,16 @@
       height: var(--item-height);
       display: grid;
       place-items: center;
-      font-size: 4.8rem;
-      line-height: 1;
       user-select: none;
+      padding: 14px;
+    }
+
+    .symbol {
+      width: var(--symbol-size);
+      height: var(--symbol-size);
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
     }
 
     .machine.spinning .light {
@@ -255,15 +264,32 @@
     }
 
     .result {
-      min-height: 30px;
+      min-height: 52px;
       margin-top: 20px;
       font-size: 1.12rem;
       color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .result strong {
       color: var(--text);
-      font-size: 1.3em;
+      font-size: 1.15em;
+      font-weight: 800;
+    }
+
+    .result-symbol {
+      width: var(--result-size);
+      height: var(--result-size);
+      object-fit: contain;
+      display: none;
+    }
+
+    .result.has-symbol .result-symbol {
+      display: inline-block;
     }
 
     @media (max-width: 420px) {
@@ -276,8 +302,9 @@
         padding: 18px;
       }
 
-      .reel-item {
-        font-size: 4.2rem;
+      :root {
+        --item-height: 128px;
+        --symbol-size: 74px;
       }
     }
   </style>
@@ -294,7 +321,7 @@
     <h1>Emoji Spin</h1>
     <p>Spin to sort people into balanced groups.</p>
 
-    <section class="machine" id="machine" aria-label="Emoji slot machine">
+    <section class="machine" id="machine" aria-label="Custom emoji slot machine">
       <div class="machine-top" aria-hidden="true">
         <span class="light"></span>
         <span class="light"></span>
@@ -304,9 +331,7 @@
 
       <div class="slot-frame">
         <div class="slot-window">
-          <div class="reel" id="reel" aria-live="polite">
-            <div class="reel-item">🐶</div>
-          </div>
+          <div class="reel" id="reel" aria-live="polite"></div>
         </div>
       </div>
     </section>
@@ -316,22 +341,48 @@
       <button id="resetButton" class="secondary-button" type="button">Reset</button>
     </div>
 
-    <div class="result" id="result">Ready to spin</div>
+    <div class="result" id="result">
+      <span id="resultText">Ready to spin</span>
+      <img id="resultSymbol" class="result-symbol" alt="" />
+    </div>
   </main>
 
   <script>
-    const emojis = ["🐶", "🦈", "🦉", "🐯"];
-    const itemHeight = 112;
+    const symbols = [
+      {
+        name: "Diamond",
+        src: "https://i.postimg.cc/rwXf4Y3T/Emoji-Diamond-RGB-Corrected-s-RGB.png"
+      },
+      {
+        name: "Fire",
+        src: "https://i.postimg.cc/BQDdRDGZ/Emoji-Fire-RGB-Corrected-s-RGB.png"
+      },
+      {
+        name: "Green",
+        src: "https://i.postimg.cc/NM5nD24q/Emoji-Green02-RGB-Corrected-s-RGB.png"
+      },
+      {
+        name: "Sparkle",
+        src: "https://i.postimg.cc/284K0D43/Emoji-Sparkle-RGB-Corrected-s-RGB.png"
+      }
+    ];
+
+    const itemHeight = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--item-height"),
+      10
+    );
 
     const machine = document.getElementById("machine");
     const reel = document.getElementById("reel");
     const spinButton = document.getElementById("spinButton");
     const resetButton = document.getElementById("resetButton");
     const result = document.getElementById("result");
+    const resultText = document.getElementById("resultText");
+    const resultSymbol = document.getElementById("resultSymbol");
 
     let spinning = false;
-    let emojiBag = [];
-    let currentEmoji = "🐶";
+    let symbolBag = [];
+    let currentSymbol = symbols[0];
 
     function shuffleArray(array) {
       const shuffled = [...array];
@@ -347,48 +398,72 @@
       return shuffled;
     }
 
-    function refillEmojiBag() {
-      emojiBag = shuffleArray(emojis);
+    function refillSymbolBag() {
+      symbolBag = shuffleArray(symbols);
     }
 
-    function pickBalancedEmoji() {
-      if (emojiBag.length === 0) {
-        refillEmojiBag();
+    function pickBalancedSymbol() {
+      if (symbolBag.length === 0) {
+        refillSymbolBag();
       }
 
-      return emojiBag.pop();
+      return symbolBag.pop();
     }
 
-    function getRandomEmoji() {
-      const randomIndex = Math.floor(Math.random() * emojis.length);
-      return emojis[randomIndex];
+    function getRandomSymbol() {
+      const randomIndex = Math.floor(Math.random() * symbols.length);
+      return symbols[randomIndex];
+    }
+
+    function createReelItem(symbolData) {
+      const item = document.createElement("div");
+      item.className = "reel-item";
+
+      const image = document.createElement("img");
+      image.className = "symbol";
+      image.src = symbolData.src;
+      image.alt = symbolData.name;
+
+      item.appendChild(image);
+      return item;
     }
 
     function renderReel(sequence) {
       reel.innerHTML = "";
 
-      sequence.forEach((emoji) => {
-        const item = document.createElement("div");
-        item.className = "reel-item";
-        item.textContent = emoji;
-        reel.appendChild(item);
+      sequence.forEach((symbolData) => {
+        reel.appendChild(createReelItem(symbolData));
       });
     }
 
-    function settleReel(emoji) {
+    function showResult(symbolData) {
+      resultText.innerHTML = `You landed on <strong>${symbolData.name}</strong>`;
+      resultSymbol.src = symbolData.src;
+      resultSymbol.alt = symbolData.name;
+      result.classList.add("has-symbol");
+    }
+
+    function resetResultText() {
+      resultText.textContent = "Ready to spin";
+      resultSymbol.removeAttribute("src");
+      resultSymbol.alt = "";
+      result.classList.remove("has-symbol");
+    }
+
+    function settleReel(symbolData) {
       reel.style.transition = "none";
       reel.style.transform = "translateY(0)";
-      renderReel([emoji]);
-      currentEmoji = emoji;
+      renderReel([symbolData]);
+      currentSymbol = symbolData;
     }
 
     function buildSpinSequence(winner) {
-      const sequence = [currentEmoji];
+      const sequence = [currentSymbol];
       const minimumItems = 28;
       const extraItems = Math.floor(Math.random() * 8);
 
       for (let i = 0; i < minimumItems + extraItems; i++) {
-        sequence.push(getRandomEmoji());
+        sequence.push(getRandomSymbol());
       }
 
       sequence.push(winner);
@@ -402,10 +477,11 @@
       spinning = true;
       spinButton.disabled = true;
       resetButton.disabled = true;
-      result.textContent = "Spinning...";
+      resultText.textContent = "Spinning...";
+      result.classList.remove("has-symbol");
       machine.classList.add("spinning");
 
-      const winner = pickBalancedEmoji();
+      const winner = pickBalancedSymbol();
       const sequence = buildSpinSequence(winner);
       const finalIndex = sequence.length - 1;
       const spinDuration = 2600 + Math.floor(Math.random() * 650);
@@ -424,10 +500,9 @@
 
       window.setTimeout(() => {
         settleReel(winner);
+        showResult(winner);
 
         machine.classList.remove("spinning");
-        result.innerHTML = `You landed on <strong>${winner}</strong>`;
-
         spinButton.disabled = false;
         resetButton.disabled = false;
         spinning = false;
@@ -437,14 +512,14 @@
     function resetApp() {
       if (spinning) return;
 
-      refillEmojiBag();
-      settleReel("🐶");
-
-      result.textContent = "Ready to spin";
+      refillSymbolBag();
+      settleReel(symbols[0]);
+      resetResultText();
     }
 
-    refillEmojiBag();
-    settleReel(currentEmoji);
+    refillSymbolBag();
+    settleReel(currentSymbol);
+    resetResultText();
 
     spinButton.addEventListener("click", spin);
     resetButton.addEventListener("click", resetApp);
